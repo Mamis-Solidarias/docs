@@ -1,11 +1,12 @@
-# Backend Architecture
+# sBackend Architecture
 
-Our microservices are using .NET 6 and docker. Each microservice can be instantiated using our [template](), which provides a base for anything we might need, including tests. The template is composed by 4 different projects:
+Our microservices are using .NET 6 and docker. Each microservice can be instantiated using our [template](), which provides a base for anything we might need, including tests. The template is composed by 5 different projects:
 
 - `src/MamisSolidarias.WebApi.TEMPLATE`: This is the main Web API project, where the endpoints will be created.
 - `test/MamisSolidarias.WebApi.TEMPLATE`: This project has all the tests the Web API project.
 - `src/MamisSolidarias.HttpClient.TEMPLATE`: This is an Http Client implemented by us to simplify communication with other microservices.
 - `test/MamisSolidarias.HttpClient.TEMPLATE`: This project contains all the tests for the Http Client project.
+- `src/MamisSolidarias.Infraestructure.TEMPLATE`: This project contains all references to the DB.
 
 ## Web API
 
@@ -284,7 +285,99 @@ These services can have different lifecycles, according to our needs. They can b
 - **Scoped**: Scoped services will be instantiated only once during a request. This means that if more than one service needs the same service
 - **Transient**: Transient services are instantiated every time they are requested. Only the light-weightiest services should be implemented in this way.
 
-For more details on dependency injection, check out the [docs](https://docs.microsoft.com/en-us/dotnet/core/extensions/dependency-injection)
+For more details on dependency injection, check out the [docs](https://docs.microsoft.com/en-us/dotnet/core/extensions/dependency-injection).
+
+## Infrastructure
+
+This Project contains all references to the database and its models. It has 2 folders:
+
+- `Models`: It contains all the database tables defined as classes
+- `Migrations`: It contains all the migrations to get the DB up to the current version.
+
+Migrations are essentially classes that will be run to update or downgrade our database to get it to the desired state. These classes will affect the database structure.
+
+### Models
+
+Using Entity Framework, models can be bound to a database table in two ways:
+
+- Using attributes
+- Using the fluent API.
+
+For our microservices, we are trying to avoid attributes as much as possible. Let’s say we have the following database model:
+
+```csharp
+class Person {
+  public int Id { get; set; }
+  public string Name { get; set; }
+  public string Email { get; set; }
+}
+```
+
+We can use the `OnModelBinding` method in the class `TEMPLATEDbContext.cs` to define the table properly:
+
+```
+protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<Person>(
+            model =>
+            {
+                model.HasKey(t => t.Id);
+                model.Property(t => t.Id).ValueGeneratedOnAdd();
+                model.Property(t => t.Name)
+                    .IsRequired()
+                    .HasMaxLength(50);
+                model.HasIndex(t => t.Email);
+                model.Property(t => t.Email).IsRequired();
+            }
+        );
+    }
+```
+
+There are a lot of different configurations here, you can check it out in the [docs](https://docs.microsoft.com/en-us/ef/core/modeling/).
+
+### Migrations
+
+Migrations are both restoration points for rollbacks as well as new points in the model configuration. They describe how your database scheme is represented by the data models you defined in the classes. 
+
+If everything is set up properly, migrations should run automatically when the application starts up, but for this we need to create these so called migrations. The migration tool exists separate from the application, and it can be installed with:
+
+```bash
+$ dotnet tool install --global dotnet-ef
+```
+
+If you are using a Mac with the M1 processor, be sure to add `-a arm64`.
+
+To create a new migration, we can run:
+
+```bash
+$ dotnet ef migrations add <MigrationName> 
+```
+
+We can also delete migrations. It is important to consider that if a migration has been applied, then it shouldn’t be removed. To remove a migration:
+
+```bash
+$ dotnet ef migrations remove
+```
+
+To list all migrations:
+
+```bash
+$ dotnet ef migrations list
+```
+
+And, if we want to delete all migrations, we can just delete the migrations folder.
+
+To apply migrations we have two options. We can either apply all the migrations:
+
+```bash
+$ dotnet ef database update
+```
+
+Or we can simply apply the migrations up to a certain migration. In this case we can either rollback a migration or move to a newer one:
+
+```bash
+$ dotnet ef database update <MigrationName>
+```
 
 ## Http Client
 
