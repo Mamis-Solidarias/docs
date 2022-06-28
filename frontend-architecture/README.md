@@ -8,7 +8,6 @@ The Frontend project will have the following initial top-level directory structu
 
 - /src
   - /components
-  - /hooks
   - /pages
     - index.tsx
   - /utils
